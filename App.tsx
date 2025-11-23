@@ -17,7 +17,7 @@ import { MOCK_GALLERY_DATA, MOCK_ADMIN_ALL_IMAGES } from './constants';
 import { ToastContainer, useToast, showToast } from './components/Toast';
 import { getProfile } from './services/apiService';
 import { APP_TEXT_GRADIENT } from './constants';
-import ServerStatus from './components/ServerStatus';
+import { ServerStatus } from './components/ServerStatus';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('splash');
