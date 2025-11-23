@@ -96,6 +96,8 @@ const Home: React.FC<HomeProps> = ({
         </motion.p>
       </div>
 
+      <h1>Jai Doshi - Testing</h1>
+
       {/* Actions Grid */}
       <div className="mt-12 px-4 flex flex-col gap-4">
         
