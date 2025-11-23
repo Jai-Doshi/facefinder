@@ -14,7 +14,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadComplete }) => {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ processed: 0, failed: 0, total: 0, current: 0, percentage: 0 });
+  const [uploadProgress, setUploadProgress] = useState({ processed: 0, failed: 0, total: 0 });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [stats, setStats] = useState<AdminStats>({
     total_images: 0,
@@ -52,17 +52,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
 
       setIsUploading(true);
       setShowUploadModal(true);
-      setUploadProgress({ processed: 0, failed: 0, total: files.length, current: 0, percentage: 0 });
+      setUploadProgress({ processed: 0, failed: 0, total: files.length });
 
       try {
-        const result = await uploadImages(files, (progress) => {
-          setUploadProgress({
-            processed: progress.processed,
-            failed: progress.failed,
-            total: progress.total,
-            current: progress.current,
-            percentage: progress.percentage,
-          });
+        const result = await uploadImages(files);
+        setUploadProgress({
+          processed: result.processed,
+          failed: result.failed,
+          total: files.length,
         });
 
         if (result.processed > 0) {
@@ -87,7 +84,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
         setTimeout(() => {
           setIsUploading(false);
           setShowUploadModal(false);
-          setUploadProgress({ processed: 0, failed: 0, total: 0, current: 0, percentage: 0 });
+          setUploadProgress({ processed: 0, failed: 0, total: 0 });
         }, 3000);
       }
     };
@@ -251,22 +248,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
                       transition={{ duration: 1, ease: "linear", repeat: Infinity }}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-center text-gray-300 dark:text-gray-300 light:text-gray-700 transition-colors duration-300">
-                      Processing image {uploadProgress.current} out of {uploadProgress.total}
-                    </p>
-                    <p className="text-center text-2xl font-bold text-purple-400 dark:text-purple-400 light:text-purple-600 transition-colors duration-300">
-                      {uploadProgress.percentage}%
-                    </p>
-                    <div className="w-full bg-white/5 dark:bg-white/5 light:bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 dark:from-purple-500 dark:to-indigo-500 light:from-purple-400 light:to-indigo-400 transition-colors duration-300"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${uploadProgress.percentage}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
+                  <p className="text-center text-gray-300 dark:text-gray-300 light:text-gray-700 transition-colors duration-300">Embedding processing...</p>
+                  <p className="text-center text-sm text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">
+                    Processing {uploadProgress.total} image(s)
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
