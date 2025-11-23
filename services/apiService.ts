@@ -3,7 +3,8 @@
 
 import { PhotoResult } from '../types';
 
-const API_BASE_URL = 'https://jai14-facefinder.hf.space';
+// Use Environment variable if available (Netlify), otherwise fallback to hardcoded URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jai14-facefinder.hf.space';
 
 export interface SearchResponse {
   results: PhotoResult[];
@@ -21,9 +22,8 @@ export interface ImagesResponse {
 
 // Helper function to show toast notifications
 const showToast = (message: string, type: 'success' | 'error' = 'error') => {
-  // This will be handled by a toast component
   console.error(`[${type.toUpperCase()}] ${message}`);
-  // In a real implementation, you'd dispatch to a toast context/store
+  // In a real implementation, dispatch to your toast context/store
 };
 
 // Helper function to handle API errors
@@ -202,11 +202,14 @@ export const updateImage = async (imageId: string, metadata: Partial<PhotoResult
 
 /**
  * Get image URL (helper function)
+ * CRITICAL UPDATE: Now handles full Supabase URLs correctly
  */
 export const getImageUrl = (imagePath: string): string => {
+  // 1. If it's a full URL (Supabase Storage), return as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
+  // 2. Fallback for any legacy relative paths
   if (imagePath.startsWith('/api/images/')) {
     return `${API_BASE_URL}${imagePath}`;
   }
@@ -366,8 +369,9 @@ export const updateProfileImage = async (token: string, imageFile: File): Promis
  */
 export const getProfileImageUrl = (imagePath: string | null): string | null => {
   if (!imagePath) {
-    return null; // No default avatar - will show initials instead
+    return null; 
   }
+  // Supabase URLs start with https://, so this catches them
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
@@ -560,4 +564,3 @@ export const getAdminStats = async (): Promise<AdminStats> => {
     };
   }
 };
-
