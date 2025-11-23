@@ -17,6 +17,7 @@ import { MOCK_GALLERY_DATA, MOCK_ADMIN_ALL_IMAGES } from './constants';
 import { ToastContainer, useToast, showToast } from './components/Toast';
 import { getProfile } from './services/apiService';
 import { APP_TEXT_GRADIENT } from './constants';
+import ServerStatus from './components/ServerStatus';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('splash');
@@ -608,6 +609,8 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen bg-brand-dark dark:bg-brand-dark light:bg-white text-white dark:text-white light:text-gray-900 pb-20 transition-colors duration-500`}>
+      <ServerStatus />
+      
       <AnimatePresence mode='wait'>
         
         {/* USER ROUTES */}
