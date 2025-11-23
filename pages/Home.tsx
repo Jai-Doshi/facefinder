@@ -153,7 +153,7 @@ const Home: React.FC<HomeProps> = ({
             </div>
             <div>
                 <h4 className="font-bold text-sm text-pink-200 dark:text-pink-200 light:text-pink-600 transition-colors duration-300">Pro Feature</h4>
-                <p className="text-xs text-pink-200/60 dark:text-pink-200/60 light:text-pink-600/80 transition-colors duration-300">Unlock detailed biometric reports. Testing</p>
+                <p className="text-xs text-pink-200/60 dark:text-pink-200/60 light:text-pink-600/80 transition-colors duration-300">Unlock detailed biometric reports.</p>
             </div>
         </div>
       </div>
