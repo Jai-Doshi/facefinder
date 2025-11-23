@@ -3,8 +3,9 @@
 
 import { PhotoResult } from '../types';
 
-// Use Environment variable if available (Netlify), otherwise fallback to hardcoded URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jai14-facefinder.hf.space';
+// const API_BASE_URL = 'https://jai14-facefinder.hf.space';
+
+const API_BASE_URL = 'http://localhost:5000';
 
 export interface SearchResponse {
   results: PhotoResult[];
@@ -16,14 +17,23 @@ export interface UploadResponse {
   failed_files: string[];
 }
 
+export interface UploadProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  processed: number;
+  failed: number;
+}
+
 export interface ImagesResponse {
   images: PhotoResult[];
 }
 
 // Helper function to show toast notifications
 const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+  // This will be handled by a toast component
   console.error(`[${type.toUpperCase()}] ${message}`);
-  // In a real implementation, dispatch to your toast context/store
+  // In a real implementation, you'd dispatch to a toast context/store
 };
 
 // Helper function to handle API errors
@@ -71,26 +81,96 @@ export const searchSimilarFaces = async (imageFile: File, token?: string | null,
 
 /**
  * Upload multiple images (Admin only)
+ * @param files Array of files to upload
+ * @param onProgress Optional callback for progress updates
  */
-export const uploadImages = async (files: File[]): Promise<UploadResponse> => {
+export const uploadImages = async (
+  files: File[],
+  onProgress?: (progress: UploadProgress) => void
+): Promise<UploadResponse> => {
+  let processed = 0;
+  let failed = 0;
+  const failed_files: string[] = [];
+
   try {
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append('images', file);
-    });
+    // Process images one by one to show progress
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const current = i + 1;
+      const total = files.length;
+      const percentage = Math.round((current / total) * 100);
 
-    const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
-      method: 'POST',
-      body: formData,
-    });
+      // Update progress before processing
+      if (onProgress) {
+        onProgress({
+          current,
+          total,
+          percentage,
+          processed,
+          failed,
+        });
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Failed to upload images' }));
-      throw new Error(errorData.error || 'Failed to upload images');
+      try {
+        // Upload single image
+        const formData = new FormData();
+        formData.append('images', file);
+
+        const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to upload image' }));
+          throw new Error(errorData.error || 'Failed to upload image');
+        }
+
+        const data: UploadResponse = await response.json();
+        
+        // Update counts based on result
+        if (data.processed > 0) {
+          processed += data.processed;
+        }
+        if (data.failed > 0) {
+          failed += data.failed;
+          if (data.failed_files && data.failed_files.length > 0) {
+            failed_files.push(...data.failed_files);
+          }
+        }
+
+        // Update progress after processing
+        if (onProgress) {
+          onProgress({
+            current,
+            total,
+            percentage,
+            processed,
+            failed,
+          });
+        }
+      } catch (error: any) {
+        failed += 1;
+        failed_files.push(file.name);
+        
+        // Update progress even on error
+        if (onProgress) {
+          onProgress({
+            current,
+            total,
+            percentage,
+            processed,
+            failed,
+          });
+        }
+      }
     }
 
-    const data: UploadResponse = await response.json();
-    return data;
+    return {
+      processed,
+      failed,
+      failed_files,
+    };
   } catch (error: any) {
     handleError(error, 'Failed to upload images');
     throw error;
@@ -202,14 +282,11 @@ export const updateImage = async (imageId: string, metadata: Partial<PhotoResult
 
 /**
  * Get image URL (helper function)
- * CRITICAL UPDATE: Now handles full Supabase URLs correctly
  */
 export const getImageUrl = (imagePath: string): string => {
-  // 1. If it's a full URL (Supabase Storage), return as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  // 2. Fallback for any legacy relative paths
   if (imagePath.startsWith('/api/images/')) {
     return `${API_BASE_URL}${imagePath}`;
   }
@@ -369,9 +446,8 @@ export const updateProfileImage = async (token: string, imageFile: File): Promis
  */
 export const getProfileImageUrl = (imagePath: string | null): string | null => {
   if (!imagePath) {
-    return null; 
+    return null; // No default avatar - will show initials instead
   }
-  // Supabase URLs start with https://, so this catches them
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
@@ -564,3 +640,4 @@ export const getAdminStats = async (): Promise<AdminStats> => {
     };
   }
 };
+
