@@ -3,9 +3,9 @@
 
 import { PhotoResult } from '../types';
 
-// const API_BASE_URL = 'https://jai14-facefinder.hf.space';
+const API_BASE_URL = 'https://jai14-facefinder.hf.space';
 
-const API_BASE_URL = 'http://localhost:5000';
+// const API_BASE_URL = 'http://localhost:5000';
 
 export interface SearchResponse {
   results: PhotoResult[];
@@ -562,4 +562,5 @@ export const getAdminStats = async (): Promise<AdminStats> => {
     };
   }
 };
+
 
