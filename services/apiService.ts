@@ -17,6 +17,17 @@ export interface UploadResponse {
   failed_files: string[];
 }
 
+export interface UploadProgress {
+  current: number;
+  total: number;
+  processed: number;
+  failed: number;
+  percentage: number;
+  current_file?: string;
+  status?: 'success' | 'error' | 'skipped' | 'no_face';
+  error?: string;
+}
+
 export interface ImagesResponse {
   images: PhotoResult[];
 }
@@ -72,9 +83,12 @@ export const searchSimilarFaces = async (imageFile: File, token?: string | null,
 };
 
 /**
- * Upload multiple images (Admin only)
+ * Upload multiple images (Admin only) with progress tracking
  */
-export const uploadImages = async (files: File[]): Promise<UploadResponse> => {
+export const uploadImages = async (
+  files: File[],
+  onProgress?: (progress: UploadProgress) => void
+): Promise<UploadResponse> => {
   try {
     const formData = new FormData();
     files.forEach((file) => {
@@ -91,8 +105,53 @@ export const uploadImages = async (files: File[]): Promise<UploadResponse> => {
       throw new Error(errorData.error || 'Failed to upload images');
     }
 
-    const data: UploadResponse = await response.json();
-    return data;
+    // Handle streaming response
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: UploadResponse | null = null;
+
+    if (!reader) {
+      throw new Error('Response body is not readable');
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.type === 'progress' && onProgress) {
+              onProgress(data as UploadProgress);
+            } else if (data.type === 'complete') {
+              finalResult = {
+                processed: data.processed,
+                failed: data.failed,
+                failed_files: data.failed_files || [],
+              };
+            } else if (data.type === 'error') {
+              throw new Error(data.error || 'Upload failed');
+            }
+          } catch (e) {
+            console.error('Error parsing progress data:', e);
+          }
+        }
+      }
+    }
+
+    if (!finalResult) {
+      throw new Error('Upload completed but no result received');
+    }
+
+    return finalResult;
   } catch (error: any) {
     handleError(error, 'Failed to upload images');
     throw error;
@@ -562,5 +621,4 @@ export const getAdminStats = async (): Promise<AdminStats> => {
     };
   }
 };
-
 
