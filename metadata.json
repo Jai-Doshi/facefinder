@@ -1,0 +1,7 @@
+{
+  "name": "FaceFinder",
+  "description": "A premium, futuristic AI-powered app to find similar faces and organize moments.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

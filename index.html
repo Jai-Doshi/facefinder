@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta
+      name="description"
+      content="AI-powered face recognition and matching system"
+    />
+    <meta name="theme-color" content="#7C5CFF" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="FaceFinder" />
+    <meta name="msapplication-TileColor" content="#7C5CFF" />
+    <meta name="msapplication-TileImage" content="/icon-144.png" />
+    <title>FaceFinder AI</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-primary: #0b0b15;
+        --bg-surface: #1a1a2e;
+        --text-primary: #ffffff;
+        --text-secondary: #9ca3af;
+      }
+
+      .light {
+        --bg-primary: #ffffff;
+        --bg-surface: #f3f4f6;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        overflow-x: hidden;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      /* Theme-aware utility classes */
+      .bg-theme {
+        background-color: var(--bg-primary);
+      }
+
+      .text-theme-primary {
+        color: var(--text-primary);
+      }
+
+      .text-theme-secondary {
+        color: var(--text-secondary);
+      }
+
+      .border-theme {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .light .border-theme {
+        border-color: rgba(0, 0, 0, 0.1);
+      }
+
+      /* Theme-aware text colors */
+      body,
+      p,
+      span,
+      div,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        color: var(--text-primary);
+        transition: color 0.3s ease;
+      }
+
+      .light body,
+      .light p,
+      .light span,
+      .light div,
+      .light h1,
+      .light h2,
+      .light h3,
+      .light h4,
+      .light h5,
+      .light h6 {
+        color: var(--text-primary);
+      }
+
+      /* Theme-aware gradients */
+      .light .bg-gradient-to-r {
+        background-image: linear-gradient(to right, var(--tw-gradient-stops));
+      }
+
+      /* Theme-aware animations */
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .light .animate-pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      /* Theme-aware shadows */
+      .light .shadow-lg {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      .light .shadow-xl {
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+
+      .light .shadow-2xl {
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      }
+      .font-display {
+        font-family: "Orbitron", sans-serif;
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Custom Glow Utilities */
+      .glow-text {
+        text-shadow: 0 0 10px rgba(124, 92, 255, 0.5),
+          0 0 20px rgba(50, 210, 240, 0.3);
+      }
+
+      .light .glow-text {
+        text-shadow: 0 0 10px rgba(124, 92, 255, 0.3),
+          0 0 20px rgba(50, 210, 240, 0.2);
+      }
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: background 0.3s ease, border-color 0.3s ease;
+      }
+      .light .glass-panel {
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+      .glass-panel-strong {
+        background: rgba(20, 20, 30, 0.6);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        transition: background 0.3s ease, border-color 0.3s ease;
+      }
+      .light .glass-panel-strong {
+        background: rgba(255, 255, 255, 0.95);
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+      .neon-border {
+        box-shadow: 0 0 10px rgba(124, 92, 255, 0.3),
+          inset 0 0 10px rgba(50, 210, 240, 0.1);
+      }
+      /* Shimmer Loading Effect */
+      .shimmer-loading {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.05) 0%,
+          rgba(255, 255, 255, 0.1) 50%,
+          rgba(255, 255, 255, 0.05) 100%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+      .light .shimmer-loading {
+        background: linear-gradient(
+          90deg,
+          rgba(0, 0, 0, 0.05) 0%,
+          rgba(0, 0, 0, 0.1) 50%,
+          rgba(0, 0, 0, 0.05) 100%
+        );
+        background-size: 200% 100%;
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: -200% 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                primary: "#7C5CFF",
+                secondary: "#32D2F0",
+                dark: "#0B0B15",
+                surface: "#1A1A2E",
+              },
+            },
+            animation: {
+              "spin-slow": "spin 8s linear infinite",
+              "pulse-fast": "pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              scan: "scan 2s linear infinite",
+            },
+            keyframes: {
+              scan: {
+                "0%": { transform: "translateY(-100%)" },
+                "100%": { transform: "translateY(100%)" },
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
+          "react/": "https://aistudiocdn.com/react@^19.2.0/",
+          "react": "https://aistudiocdn.com/react@^19.2.0",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="/index.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
