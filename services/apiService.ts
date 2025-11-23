@@ -17,14 +17,6 @@ export interface UploadResponse {
   failed_files: string[];
 }
 
-export interface UploadProgress {
-  current: number;
-  total: number;
-  percentage: number;
-  processed: number;
-  failed: number;
-}
-
 export interface ImagesResponse {
   images: PhotoResult[];
 }
@@ -81,96 +73,26 @@ export const searchSimilarFaces = async (imageFile: File, token?: string | null,
 
 /**
  * Upload multiple images (Admin only)
- * @param files Array of files to upload
- * @param onProgress Optional callback for progress updates
  */
-export const uploadImages = async (
-  files: File[],
-  onProgress?: (progress: UploadProgress) => void
-): Promise<UploadResponse> => {
-  let processed = 0;
-  let failed = 0;
-  const failed_files: string[] = [];
-
+export const uploadImages = async (files: File[]): Promise<UploadResponse> => {
   try {
-    // Process images one by one to show progress
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const current = i + 1;
-      const total = files.length;
-      const percentage = Math.round((current / total) * 100);
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('images', file);
+    });
 
-      // Update progress before processing
-      if (onProgress) {
-        onProgress({
-          current,
-          total,
-          percentage,
-          processed,
-          failed,
-        });
-      }
+    const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
+      method: 'POST',
+      body: formData,
+    });
 
-      try {
-        // Upload single image
-        const formData = new FormData();
-        formData.append('images', file);
-
-        const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to upload image' }));
-          throw new Error(errorData.error || 'Failed to upload image');
-        }
-
-        const data: UploadResponse = await response.json();
-        
-        // Update counts based on result
-        if (data.processed > 0) {
-          processed += data.processed;
-        }
-        if (data.failed > 0) {
-          failed += data.failed;
-          if (data.failed_files && data.failed_files.length > 0) {
-            failed_files.push(...data.failed_files);
-          }
-        }
-
-        // Update progress after processing
-        if (onProgress) {
-          onProgress({
-            current,
-            total,
-            percentage,
-            processed,
-            failed,
-          });
-        }
-      } catch (error: any) {
-        failed += 1;
-        failed_files.push(file.name);
-        
-        // Update progress even on error
-        if (onProgress) {
-          onProgress({
-            current,
-            total,
-            percentage,
-            processed,
-            failed,
-          });
-        }
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to upload images' }));
+      throw new Error(errorData.error || 'Failed to upload images');
     }
 
-    return {
-      processed,
-      failed,
-      failed_files,
-    };
+    const data: UploadResponse = await response.json();
+    return data;
   } catch (error: any) {
     handleError(error, 'Failed to upload images');
     throw error;
