@@ -86,25 +86,46 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
           return;
         }
 
-        // Filter out already-saved images and process results
-        const processedData = data
-          .filter((item) => !savedIdsSet.has(item.id)) // Filter out saved images
-          .map((item) => ({
+        // Processing: Deduplicate videos and filter saved
+        const uniqueVideos = new Map<string, any>();
+        const processedImages: any[] = [];
+
+        data.forEach((item) => {
+          if (savedIdsSet.has(item.id)) return;
+
+          // Normalize items
+          const processedItem = {
             ...item,
             isSaved: false,
             imageUrl: getImageUrl(item.imageUrl),
-            // Ensure media_type is set, default to image if missing from API
             media_type: item.media_type || 'image',
             type: (item.media_type || 'image') as MediaType,
             videoUrl: item.media_type === 'video' ? getImageUrl(item.imageUrl) : undefined
-          }));
+          };
 
-        setResults(processedData);
+          if (processedItem.media_type === 'video') {
+            // Deduplicate videos: Keep only the highest confidence match per video file
+            const existing = uniqueVideos.get(processedItem.imageUrl);
+            if (!existing || processedItem.similarity > existing.similarity) {
+              uniqueVideos.set(processedItem.imageUrl, processedItem);
+            }
+          } else {
+            processedImages.push(processedItem);
+          }
+        });
+
+        const finalResults = [...processedImages, ...Array.from(uniqueVideos.values())];
+
+        // Sort by confidence
+        finalResults.sort((a, b) => b.similarity - a.similarity);
+
+        setResults(finalResults);
         setLoading(false);
 
         // Auto-switch tab if only videos found
-        const hasImages = processedData.some(i => i.media_type === 'image' || !i.media_type);
-        const hasVideos = processedData.some(i => i.media_type === 'video');
+        const hasImages = processedImages.length > 0;
+        const hasVideos = uniqueVideos.size > 0;
+
         if (!hasImages && hasVideos) {
           setActiveMediaType('video');
         }
@@ -374,17 +395,43 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                   className="relative group"
                 >
                   <div
-                    className="relative rounded-2xl overflow-hidden aspect-[3/4] glass-panel border-0 cursor-pointer"
+                    className="relative rounded-2xl overflow-hidden aspect-[3/4] glass-panel border-0 cursor-pointer bg-black"
                     onClick={() => openFullscreenViewer(item)}
+                    onMouseEnter={(e) => {
+                      if (item.media_type === 'video') {
+                        const vid = e.currentTarget.querySelector('video');
+                        if (vid) vid.play().catch(() => { });
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (item.media_type === 'video') {
+                        const vid = e.currentTarget.querySelector('video');
+                        if (vid) {
+                          vid.pause();
+                          vid.currentTime = item.timestamp || 0;
+                        }
+                      }
+                    }}
                   >
-                    <img
-                      src={item.imageUrl}
-                      alt="Match"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
-                      }}
-                    />
+                    {item.media_type === 'video' ? (
+                      <video
+                        src={`${item.imageUrl}#t=${item.timestamp || 0}`}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        loop
+                      />
+                    ) : (
+                      <img
+                        src={item.imageUrl}
+                        alt="Match"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
+                        }}
+                      />
+                    )}
 
                     {/* Confidence Badge */}
                     <div className="absolute top-2 right-2 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-brand-secondary/30 dark:border-brand-secondary/30 light:border-brand-secondary/40 transition-colors duration-300">
@@ -393,7 +440,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
 
                     {/* Video Badge */}
                     {item.media_type === 'video' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors pointer-events-none">
                         <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center border border-white/40">
                           <Play size={18} className="text-white fill-current ml-0.5" />
                         </div>
