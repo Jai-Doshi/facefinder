@@ -117,7 +117,7 @@ export const uploadImages = async (
 
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -128,7 +128,7 @@ export const uploadImages = async (
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6));
-            
+
             if (data.type === 'progress' && onProgress) {
               onProgress(data as UploadProgress);
             } else if (data.type === 'complete') {
@@ -159,6 +159,39 @@ export const uploadImages = async (
 };
 
 /**
+ * Upload a video file (Admin only)
+ */
+export const uploadVideo = async (
+  file: File,
+  onProgress?: (step: string) => void
+): Promise<void> => {
+  try {
+    const formData = new FormData();
+    formData.append('video', file);
+
+    if (onProgress) onProgress('Uploading video...');
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/upload-video`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to upload video' }));
+      throw new Error(errorData.error || 'Failed to upload video');
+    }
+
+    // The response includes stats, but we just return void for now
+    const data = await response.json();
+    console.log("Video processed:", data);
+
+  } catch (error: any) {
+    handleError(error, 'Failed to upload video');
+    throw error;
+  }
+};
+
+/**
  * Get all images from database (Admin only)
  * @param taggedBy Optional profile name to filter by
  * @param untaggedOnly If true, only return untagged images
@@ -172,7 +205,7 @@ export const getAllImages = async (taggedBy?: string, untaggedOnly?: boolean): P
     if (untaggedOnly) {
       params.append('untagged_only', 'true');
     }
-    
+
     const url = `${API_BASE_URL}/api/admin/images${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url, {
       method: 'GET',
@@ -358,7 +391,7 @@ export const getProfile = async (token: string): Promise<{ user: UserProfile }> 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+
     const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'GET',
       headers: {
@@ -551,7 +584,7 @@ export const getUserStats = async (token: string): Promise<{ scan_count: number;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+
     const response = await fetch(`${API_BASE_URL}/api/user/stats`, {
       method: 'GET',
       headers: {

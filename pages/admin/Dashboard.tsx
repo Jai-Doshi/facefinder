@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, TrendingDown, Users, Upload, Activity, AlertTriangle, X, CheckCircle, Image as ImageIcon, Scan } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Upload, Activity, AlertTriangle, X, CheckCircle, Image as ImageIcon, Scan, Video } from 'lucide-react';
 import { GlassCard, GradientButton } from '../../components/UIComponents';
 import { ADMIN_TEXT_GRADIENT } from '../../constants';
-import { uploadImages, getAdminStats, AdminStats } from '../../services/apiService';
+import { uploadImages, uploadVideo, getAdminStats, AdminStats } from '../../services/apiService';
 import { showToast } from '../../components/Toast';
 import { Shimmer } from '../../components/Shimmer';
 
@@ -99,20 +99,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
     };
     input.click();
   };
+
+  const handleVideoUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/mp4,video/avi,video/mov';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      setShowUploadModal(true);
+      // Reuse progress state for single video
+      setUploadProgress({ processed: 0, failed: 0, total: 1, current: 0, percentage: 0, currentFile: file.name });
+
+      try {
+        await uploadVideo(file, (step) => {
+          // Simple progress update since we don't have stream from video upload yet
+          setUploadProgress(prev => ({ ...prev, percentage: 50, currentFile: `Processing: ${file.name}` }));
+        });
+
+        setUploadProgress(prev => ({ ...prev, percentage: 100, processed: 1 }));
+        showToast('Video processed successfully', 'success');
+
+        if (onUploadComplete) {
+          setTimeout(() => onUploadComplete(), 2000);
+        }
+        fetchStats();
+
+      } catch (error: any) {
+        setUploadProgress(prev => ({ ...prev, failed: 1 }));
+        showToast(error.message || 'Failed to upload video', 'error');
+      } finally {
+        setTimeout(() => {
+          setIsUploading(false);
+          setShowUploadModal(false);
+          setUploadProgress({ processed: 0, failed: 0, total: 0, current: 0, percentage: 0, currentFile: '' });
+        }, 3000);
+      }
+    };
+    input.click();
+  };
+
   return (
     <div className="pt-20 pb-32 px-4 min-h-screen bg-brand-dark dark:bg-brand-dark light:bg-gray-50 relative overflow-hidden transition-colors duration-300">
       {/* Ambient Admin Background */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 dark:bg-purple-900/20 light:bg-purple-100/30 rounded-full blur-[100px] -z-10 pointer-events-none transition-colors duration-300" />
-      
+
       <div className="mb-8 flex justify-between items-center">
         <div>
-            <h1 className="text-3xl font-display font-bold text-white dark:text-white light:text-gray-900 transition-colors duration-300">Admin Console</h1>
-            <p className="text-gray-400 dark:text-gray-400 light:text-gray-600 text-sm flex items-center gap-2 transition-colors duration-300">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"/> System Operational
-            </p>
+          <h1 className="text-3xl font-display font-bold text-white dark:text-white light:text-gray-900 transition-colors duration-300">Admin Console</h1>
+          <p className="text-gray-400 dark:text-gray-400 light:text-gray-600 text-sm flex items-center gap-2 transition-colors duration-300">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> System Operational
+          </p>
         </div>
         <div className="w-10 h-10 rounded-full bg-white/5 dark:bg-white/5 light:bg-white shadow-sm flex items-center justify-center border border-white/10 dark:border-white/10 light:border-gray-200 transition-all duration-300">
-            <Activity size={20} className="text-purple-400 dark:text-purple-400 light:text-purple-600 transition-colors duration-300" />
+          <Activity size={20} className="text-purple-400 dark:text-purple-400 light:text-purple-600 transition-colors duration-300" />
         </div>
       </div>
 
@@ -186,44 +228,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
       {/* Main Visualization (Mock Chart) */}
       <GlassCard className="p-6 mb-8 border-purple-500/20 dark:border-purple-500/20 light:border-purple-500/30 transition-colors duration-300">
         <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-white dark:text-white light:text-gray-900 transition-colors duration-300">Upload Traffic</h3>
-            <select className="bg-white/5 dark:bg-white/5 light:bg-white border border-white/10 dark:border-white/10 light:border-gray-200 rounded-lg text-xs px-2 py-1 text-gray-300 dark:text-gray-300 light:text-gray-700 outline-none transition-all duration-300">
-                <option>Last 24h</option>
-                <option>7 Days</option>
-            </select>
+          <h3 className="font-bold text-white dark:text-white light:text-gray-900 transition-colors duration-300">Upload Traffic</h3>
+          <select className="bg-white/5 dark:bg-white/5 light:bg-white border border-white/10 dark:border-white/10 light:border-gray-200 rounded-lg text-xs px-2 py-1 text-gray-300 dark:text-gray-300 light:text-gray-700 outline-none transition-all duration-300">
+            <option>Last 24h</option>
+            <option>7 Days</option>
+          </select>
         </div>
-        
+
         <div className="h-40 flex items-end justify-between gap-2 px-2">
-             {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 95].map((h, i) => (
-                 <motion.div 
-                    key={i}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${h}%` }}
-                    transition={{ delay: i * 0.05, duration: 0.5 }}
-                    className="w-full bg-gradient-to-t from-purple-900/50 dark:from-purple-900/50 light:from-purple-200 to-purple-500 dark:to-purple-500 light:to-purple-400 rounded-t-sm relative group transition-colors duration-300"
-                 >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 dark:bg-black/80 light:bg-gray-800 text-white dark:text-white light:text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                        {h * 12}
-                    </div>
-                 </motion.div>
-             ))}
+          {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 95].map((h, i) => (
+            <motion.div
+              key={i}
+              initial={{ height: 0 }}
+              animate={{ height: `${h}%` }}
+              transition={{ delay: i * 0.05, duration: 0.5 }}
+              className="w-full bg-gradient-to-t from-purple-900/50 dark:from-purple-900/50 light:from-purple-200 to-purple-500 dark:to-purple-500 light:to-purple-400 rounded-t-sm relative group transition-colors duration-300"
+            >
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 dark:bg-black/80 light:bg-gray-800 text-white dark:text-white light:text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                {h * 12}
+              </div>
+            </motion.div>
+          ))}
         </div>
         <div className="flex justify-between text-xs text-gray-500 dark:text-gray-500 light:text-gray-400 mt-2 font-mono transition-colors duration-300">
-            <span>00:00</span>
-            <span>12:00</span>
-            <span>23:59</span>
+          <span>00:00</span>
+          <span>12:00</span>
+          <span>23:59</span>
         </div>
       </GlassCard>
 
       {/* Quick Actions */}
       <h3 className="text-white dark:text-white light:text-gray-900 font-bold mb-4 transition-colors duration-300">Quick Actions</h3>
       <div className="flex gap-4">
-         <GradientButton onClick={handleBulkUpload} className="flex-1 !from-purple-600 !to-indigo-600 shadow-[0_0_20px_rgba(124,58,237,0.4)] dark:shadow-[0_0_20px_rgba(124,58,237,0.4)] light:shadow-[0_0_20px_rgba(124,58,237,0.3)]">
-            <Upload size={18} /> Bulk Upload
-         </GradientButton>
-         <button className="flex-1 bg-white/5 dark:bg-white/5 light:bg-white border border-white/10 dark:border-white/10 light:border-gray-200 rounded-xl flex items-center justify-center gap-2 text-white dark:text-white light:text-gray-900 font-semibold hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-gray-50 transition-all duration-300 shadow-sm light:shadow">
-            <AlertTriangle size={18} className="text-yellow-500 dark:text-yellow-500 light:text-yellow-600" /> Review ({stats.pending_reviews})
-         </button>
+        <GradientButton onClick={handleBulkUpload} className="flex-1 !from-purple-600 !to-indigo-600 shadow-[0_0_20px_rgba(124,58,237,0.4)] dark:shadow-[0_0_20px_rgba(124,58,237,0.4)] light:shadow-[0_0_20px_rgba(124,58,237,0.3)]">
+          <Upload size={18} /> Bulk Upload
+        </GradientButton>
+        <GradientButton onClick={handleVideoUpload} className="flex-1 !from-blue-600 !to-cyan-600 shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+          <Video size={18} /> Upload Video
+        </GradientButton>
+        <button className="flex-1 bg-white/5 dark:bg-white/5 light:bg-white border border-white/10 dark:border-white/10 light:border-gray-200 rounded-xl flex items-center justify-center gap-2 text-white dark:text-white light:text-gray-900 font-semibold hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-gray-50 transition-all duration-300 shadow-sm light:shadow">
+          <AlertTriangle size={18} className="text-yellow-500 dark:text-yellow-500 light:text-yellow-600" /> Review ({stats.pending_reviews})
+        </button>
       </div>
 
       {/* Upload Processing Modal */}

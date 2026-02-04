@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, ArrowLeft, Info, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, ArrowLeft, Info, ChevronLeft, ChevronRight, Video } from 'lucide-react';
 import { PhotoResult } from '../types';
 import { searchSimilarFaces, getImageUrl, getSavedImageIds, saveToGallery } from '../services/apiService';
 import { APP_TEXT_GRADIENT } from '../constants';
@@ -31,23 +31,23 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   useEffect(() => {
     // Create a unique ID for this file to prevent duplicate processing
     const fileId = sourceFile ? `${sourceFile.name}-${sourceFile.size}-${sourceFile.lastModified}` : null;
-    
+
     // Prevent duplicate processing for the same file
     if (!fileId || processingRef.current === fileId) {
       return;
     }
-    
+
     processingRef.current = fileId;
-    
+
     // Abort any previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
+
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    
+
     const process = async () => {
       if (!sourceFile) {
         showToast('No image file provided', 'error');
@@ -78,12 +78,12 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
 
         // Actual API call - only make ONE request
         const data = await searchSimilarFaces(sourceFile, token, signal);
-        
+
         // Check if request was aborted
         if (signal.aborted) {
           return;
         }
-        
+
         // Filter out already-saved images and process results
         const processedData = data
           .filter((item) => !savedIdsSet.has(item.id)) // Filter out saved images
@@ -92,7 +92,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
             isSaved: false,
             imageUrl: getImageUrl(item.imageUrl),
           }));
-        
+
         setResults(processedData);
         setLoading(false);
       } catch (error: any) {
@@ -105,9 +105,9 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
         processingRef.current = null; // Reset for next search
       }
     };
-    
+
     process();
-    
+
     return () => {
       // Cleanup: abort request if component unmounts or file changes
       if (abortControllerRef.current) {
@@ -125,14 +125,14 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
         if (token) {
           await saveToGallery(token, photo);
         }
-        
+
         // Mark as saved locally and remove from results
         setSavedImageIds(prev => new Set([...prev, id]));
         const newResults = results.filter(p => p.id !== id);
         setResults(newResults);
         onSave(photo);
         showToast('Image saved to gallery', 'success');
-        
+
         // If in fullscreen mode, navigate to next image or close
         if (fromFullscreen && selectedImage?.id === id) {
           if (newResults.length === 0) {
@@ -161,7 +161,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   const handleReject = (id: string, fromFullscreen: boolean = false) => {
     const newResults = results.filter(p => p.id !== id);
     setResults(newResults);
-    
+
     // If in fullscreen mode, navigate to next image or close
     if (fromFullscreen && selectedImage?.id === id) {
       if (newResults.length === 0) {
@@ -196,7 +196,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   const navigateImage = useCallback((direction: 'prev' | 'next', currentResults?: PhotoResult[]) => {
     const resultsToUse = currentResults || results;
     if (resultsToUse.length === 0) return;
-    
+
     setCurrentImageIndex(prevIndex => {
       let newIndex = prevIndex;
       if (direction === 'next') {
@@ -204,7 +204,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
       } else {
         newIndex = (prevIndex - 1 + resultsToUse.length) % resultsToUse.length;
       }
-      
+
       setSelectedImage(resultsToUse[newIndex]);
       return newIndex;
     });
@@ -221,7 +221,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
 
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
-    
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
@@ -237,7 +237,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedImage || viewerMode !== 'fullscreen') return;
-      
+
       if (e.key === 'ArrowLeft') {
         navigateImage('prev');
       } else if (e.key === 'ArrowRight') {
@@ -259,35 +259,35 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
       <div className="fixed inset-0 z-50 bg-brand-dark dark:bg-brand-dark light:bg-white flex flex-col items-center justify-center p-8 transition-colors duration-300">
         <div className="relative w-64 h-64 mb-8">
           {/* Scanning Circle */}
-          <motion.div 
+          <motion.div
             className="absolute inset-0 rounded-full border-4 border-brand-primary/30 dark:border-brand-primary/30 light:border-brand-primary/50 border-t-brand-primary dark:border-t-brand-primary light:border-t-brand-primary/90 transition-colors duration-300"
             animate={{ rotate: 360 }}
             transition={{ duration: 2, ease: "linear", repeat: Infinity }}
           />
-          <motion.div 
+          <motion.div
             className="absolute inset-4 rounded-full border-2 border-brand-secondary/30 dark:border-brand-secondary/30 light:border-brand-secondary/50 border-b-brand-secondary dark:border-b-brand-secondary light:border-b-brand-secondary/80 transition-colors duration-300"
             animate={{ rotate: -360 }}
             transition={{ duration: 3, ease: "linear", repeat: Infinity }}
           />
-          
+
           {/* Source Image with Pulse */}
           <div className="absolute inset-8 rounded-full overflow-hidden border-2 border-white/20 dark:border-white/20 light:border-gray-300 transition-colors duration-300">
-             {sourceImage && <img src={sourceImage} alt="Source" className="w-full h-full object-cover opacity-80 transition-opacity duration-300" />}
-             <div className="absolute inset-0 bg-brand-primary/20 dark:bg-brand-primary/20 light:bg-brand-primary/10 animate-pulse transition-colors duration-300" />
+            {sourceImage && <img src={sourceImage} alt="Source" className="w-full h-full object-cover opacity-80 transition-opacity duration-300" />}
+            <div className="absolute inset-0 bg-brand-primary/20 dark:bg-brand-primary/20 light:bg-brand-primary/10 animate-pulse transition-colors duration-300" />
           </div>
         </div>
 
         <h2 className={`text-2xl font-display font-bold mb-2 transition-colors duration-300 ${APP_TEXT_GRADIENT}`}>
-           AI Processing
+          AI Processing
         </h2>
-        
+
         <div className="h-6 overflow-hidden flex flex-col items-center">
-           <AnimatePresence mode='wait'>
-             {processingStep === 0 && <motion.span key="0" initial={{y:20, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-20, opacity:0}} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Analyzing facial features...</motion.span>}
-             {processingStep === 1 && <motion.span key="1" initial={{y:20, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-20, opacity:0}} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Constructing neural mesh...</motion.span>}
-             {processingStep === 2 && <motion.span key="2" initial={{y:20, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-20, opacity:0}} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Matching against global database...</motion.span>}
-             {processingStep === 3 && <motion.span key="3" initial={{y:20, opacity:0}} animate={{y:0, opacity:1}} exit={{y:-20, opacity:0}} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Finalizing matches...</motion.span>}
-           </AnimatePresence>
+          <AnimatePresence mode='wait'>
+            {processingStep === 0 && <motion.span key="0" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Analyzing facial features...</motion.span>}
+            {processingStep === 1 && <motion.span key="1" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Constructing neural mesh...</motion.span>}
+            {processingStep === 2 && <motion.span key="2" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Matching against global database...</motion.span>}
+            {processingStep === 3 && <motion.span key="3" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Finalizing matches...</motion.span>}
+          </AnimatePresence>
         </div>
       </div>
     );
@@ -346,24 +346,32 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
             transition={{ delay: index * 0.1 }}
             className="relative group"
           >
-            <div 
+            <div
               className="relative rounded-2xl overflow-hidden aspect-[3/4] glass-panel border-0 cursor-pointer"
               onClick={() => openFullscreenViewer(item)}
             >
-              <img 
-                src={item.imageUrl} 
-                alt="Match" 
+              <img
+                src={item.imageUrl}
+                alt="Match"
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   // Fallback if image fails to load
                   (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
                 }}
               />
-              
+
               {/* Confidence Badge */}
               <div className="absolute top-2 right-2 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-brand-secondary/30 dark:border-brand-secondary/30 light:border-brand-secondary/40 transition-colors duration-300">
                 <span className="text-xs font-bold text-brand-secondary dark:text-brand-secondary light:text-brand-secondary/90 transition-colors duration-300">{item.confidence}%</span>
               </div>
+
+              {/* Video Badge */}
+              {item.media_type === 'video' && (
+                <div className="absolute top-2 right-16 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-blue-500/30 transition-colors duration-300 flex items-center gap-1">
+                  <Video size={12} className="text-blue-400" />
+                  <span className="text-xs font-bold text-blue-400">{item.timestamp}s</span>
+                </div>
+              )}
 
               {/* Info Button */}
               <button
@@ -382,7 +390,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
 
               {/* Actions */}
               <div className="absolute bottom-0 inset-x-0 p-3 flex justify-between items-center z-20">
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleReject(item.id);
@@ -391,8 +399,8 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                 >
                   <X size={18} />
                 </button>
-                
-                <button 
+
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSave(item.id);
@@ -487,15 +495,14 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
               >
                 <X size={24} />
               </button>
-              
+
               <button
                 onClick={() => handleSave(selectedImage.id, true)}
                 disabled={selectedImage.isSaved}
-                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all transform active:scale-90 ${
-                  selectedImage.isSaved
-                    ? 'bg-green-500 dark:bg-green-500 light:bg-green-600 text-white'
-                    : 'bg-brand-primary dark:bg-brand-primary light:bg-brand-primary/90 text-white hover:bg-brand-primary/80 dark:hover:bg-brand-primary/80 light:hover:bg-brand-primary/70 shadow-[0_0_20px_rgba(124,92,255,0.6)] dark:shadow-[0_0_20px_rgba(124,92,255,0.6)] light:shadow-[0_0_20px_rgba(124,92,255,0.5)]'
-                }`}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all transform active:scale-90 ${selectedImage.isSaved
+                  ? 'bg-green-500 dark:bg-green-500 light:bg-green-600 text-white'
+                  : 'bg-brand-primary dark:bg-brand-primary light:bg-brand-primary/90 text-white hover:bg-brand-primary/80 dark:hover:bg-brand-primary/80 light:hover:bg-brand-primary/70 shadow-[0_0_20px_rgba(124,92,255,0.6)] dark:shadow-[0_0_20px_rgba(124,92,255,0.6)] light:shadow-[0_0_20px_rgba(124,92,255,0.5)]'
+                  }`}
               >
                 <Check size={24} />
               </button>
@@ -536,7 +543,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Similarity:</span>
@@ -572,6 +579,12 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                     <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">
                       {selectedImage.latitude.toFixed(4)}, {selectedImage.longitude.toFixed(4)}
                     </span>
+                  </div>
+                )}
+                {selectedImage.media_type === 'video' && selectedImage.timestamp !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Timestamp:</span>
+                    <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">{selectedImage.timestamp}s</span>
                   </div>
                 )}
               </div>
