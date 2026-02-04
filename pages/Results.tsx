@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, ArrowLeft, Info, ChevronLeft, ChevronRight, Video } from 'lucide-react';
-import { PhotoResult } from '../types';
+import { Check, X, ArrowLeft, Info, ChevronLeft, ChevronRight, Video, Play, Film, ImageIcon } from 'lucide-react';
+import { PhotoResult, MediaType } from '../types';
 import { searchSimilarFaces, getImageUrl, getSavedImageIds, saveToGallery } from '../services/apiService';
 import { APP_TEXT_GRADIENT } from '../constants';
 import { showToast } from '../components/Toast';
@@ -25,6 +25,8 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [savedImageIds, setSavedImageIds] = useState<Set<string>>(new Set(propSavedIds || []));
+  const [activeMediaType, setActiveMediaType] = useState<MediaType>('image');
+
   const processingRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -91,10 +93,22 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
             ...item,
             isSaved: false,
             imageUrl: getImageUrl(item.imageUrl),
+            // Ensure media_type is set, default to image if missing from API
+            media_type: item.media_type || 'image',
+            type: (item.media_type || 'image') as MediaType,
+            videoUrl: item.media_type === 'video' ? getImageUrl(item.imageUrl) : undefined
           }));
 
         setResults(processedData);
         setLoading(false);
+
+        // Auto-switch tab if only videos found
+        const hasImages = processedData.some(i => i.media_type === 'image' || !i.media_type);
+        const hasVideos = processedData.some(i => i.media_type === 'video');
+        if (!hasImages && hasVideos) {
+          setActiveMediaType('video');
+        }
+
       } catch (error: any) {
         if (error.name === 'AbortError') {
           return; // Request was aborted, ignore
@@ -117,6 +131,11 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
     };
   }, [sourceFile, token]);
 
+  const filteredResults = results.filter(item => {
+    const type = item.media_type || 'image';
+    return type === activeMediaType;
+  });
+
   const handleSave = async (id: string, fromFullscreen: boolean = false) => {
     const photo = results.find(r => r.id === id);
     if (photo) {
@@ -131,29 +150,24 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
         const newResults = results.filter(p => p.id !== id);
         setResults(newResults);
         onSave(photo);
-        showToast('Image saved to gallery', 'success');
+        showToast(`${activeMediaType === 'image' ? 'Image' : 'Video'} saved to gallery`, 'success');
 
         // If in fullscreen mode, navigate to next image or close
         if (fromFullscreen && selectedImage?.id === id) {
-          if (newResults.length === 0) {
-            // No more images, close viewer and go back
+          const currentFiltered = newResults.filter(i => (i.media_type || 'image') === activeMediaType);
+          if (currentFiltered.length === 0) {
+            // No more items in this category
             setSelectedImage(null);
             setViewerMode('info');
           } else {
-            // Navigate to next image (stay at same index, or go to previous if at end)
-            const currentIndex = currentImageIndex;
-            const nextIndex = currentIndex < newResults.length ? currentIndex : Math.max(0, currentIndex - 1);
-            if (nextIndex >= 0 && nextIndex < newResults.length) {
-              setCurrentImageIndex(nextIndex);
-              setSelectedImage(newResults[nextIndex]);
-            } else {
-              setSelectedImage(null);
-              setViewerMode('info');
-            }
+            // Navigate to next image
+            const currentIndex = Math.min(currentImageIndex, currentFiltered.length - 1);
+            setCurrentImageIndex(currentIndex);
+            setSelectedImage(currentFiltered[currentIndex]);
           }
         }
       } catch (error: any) {
-        showToast(error.message || 'Failed to save image', 'error');
+        showToast(error.message || 'Failed to save item', 'error');
       }
     }
   };
@@ -164,21 +178,15 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
 
     // If in fullscreen mode, navigate to next image or close
     if (fromFullscreen && selectedImage?.id === id) {
-      if (newResults.length === 0) {
-        // No more images, close viewer and go back
+      const currentFiltered = newResults.filter(i => (i.media_type || 'image') === activeMediaType);
+
+      if (currentFiltered.length === 0) {
         setSelectedImage(null);
         setViewerMode('info');
       } else {
-        // Navigate to next image (stay at same index, or go to previous if at end)
-        const currentIndex = currentImageIndex;
-        const nextIndex = currentIndex < newResults.length ? currentIndex : Math.max(0, currentIndex - 1);
-        if (nextIndex >= 0 && nextIndex < newResults.length) {
-          setCurrentImageIndex(nextIndex);
-          setSelectedImage(newResults[nextIndex]);
-        } else {
-          setSelectedImage(null);
-          setViewerMode('info');
-        }
+        const currentIndex = Math.min(currentImageIndex, currentFiltered.length - 1);
+        setCurrentImageIndex(currentIndex);
+        setSelectedImage(currentFiltered[currentIndex]);
       }
     } else if (selectedImage?.id === id) {
       setSelectedImage(null);
@@ -187,28 +195,27 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
   };
 
   const openFullscreenViewer = (image: PhotoResult) => {
-    const index = results.findIndex(r => r.id === image.id);
+    const index = filteredResults.findIndex(r => r.id === image.id);
     setCurrentImageIndex(index >= 0 ? index : 0);
     setSelectedImage(image);
     setViewerMode('fullscreen');
   };
 
-  const navigateImage = useCallback((direction: 'prev' | 'next', currentResults?: PhotoResult[]) => {
-    const resultsToUse = currentResults || results;
-    if (resultsToUse.length === 0) return;
+  const navigateImage = useCallback((direction: 'prev' | 'next') => {
+    if (filteredResults.length === 0) return;
 
     setCurrentImageIndex(prevIndex => {
       let newIndex = prevIndex;
       if (direction === 'next') {
-        newIndex = (prevIndex + 1) % resultsToUse.length;
+        newIndex = (prevIndex + 1) % filteredResults.length;
       } else {
-        newIndex = (prevIndex - 1 + resultsToUse.length) % resultsToUse.length;
+        newIndex = (prevIndex - 1 + filteredResults.length) % filteredResults.length;
       }
 
-      setSelectedImage(resultsToUse[newIndex]);
+      setSelectedImage(filteredResults[newIndex]);
       return newIndex;
     });
-  }, [results]);
+  }, [filteredResults]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
@@ -254,6 +261,33 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
     }
   }, [selectedImage, viewerMode, navigateImage]);
 
+  const TabButton = ({ type, label, icon: Icon }: { type: MediaType, label: string, icon: any }) => (
+    <button
+      onClick={() => setActiveMediaType(type)}
+      className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 z-10 ${activeMediaType === type
+          ? 'text-gray-900 dark:text-gray-900 light:text-gray-900'
+          : 'text-gray-500 dark:text-gray-400 light:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200'
+        }`}
+    >
+      {activeMediaType === type && (
+        <motion.div
+          layoutId="results-tab-bg"
+          className="absolute inset-0 bg-white dark:bg-white light:bg-white rounded-full shadow-md"
+          initial={false}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
+      )}
+      <Icon size={16} className="relative z-10" />
+      <span className="relative z-10">{label}</span>
+
+      {/* Count Badge */}
+      <span className={`relative z-10 text-[10px] px-1.5 py-0.5 rounded-full ${activeMediaType === type ? 'bg-black/10 text-gray-900' : 'bg-white/10 text-gray-500'
+        }`}>
+        {results.filter(r => (r.media_type || 'image') === type).length}
+      </span>
+    </button>
+  );
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 bg-brand-dark dark:bg-brand-dark light:bg-white flex flex-col items-center justify-center p-8 transition-colors duration-300">
@@ -293,38 +327,6 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
     );
   }
 
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return 'Unknown';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'Unknown';
-    try {
-      return new Date(dateStr).toLocaleDateString();
-    } catch {
-      return dateStr;
-    }
-  };
-
-  if (results.length === 0 && !loading) {
-    return (
-      <div className="pt-20 pb-32 px-4 min-h-screen flex flex-col items-center justify-center bg-brand-dark dark:bg-brand-dark light:bg-white">
-        <div className="flex items-center mb-6">
-          <button onClick={onBack} className="p-2 rounded-full bg-white/5 dark:bg-white/5 light:bg-gray-100 hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-gray-200 mr-4">
-            <ArrowLeft className="text-white dark:text-white light:text-gray-900" />
-          </button>
-        </div>
-        <div className="text-center">
-          <h2 className="text-2xl font-display font-bold text-white dark:text-white light:text-gray-900 mb-2">No Matches Found</h2>
-          <p className="text-gray-400 dark:text-gray-400 light:text-gray-600">Try uploading a different image or check the database.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="pt-20 pb-32 px-4 bg-brand-dark dark:bg-brand-dark light:bg-white min-h-screen">
       <div className="flex items-center mb-6">
@@ -333,90 +335,122 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
         </button>
         <div>
           <h2 className="text-2xl font-display font-bold text-white dark:text-white light:text-gray-900">Matches Found</h2>
-          <p className="text-sm text-gray-400 dark:text-gray-400 light:text-gray-600">{results.length} result{results.length !== 1 ? 's' : ''} found</p>
+          <p className="text-sm text-gray-400 dark:text-gray-400 light:text-gray-600">{results.length} total matches</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {results.map((item, index) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="relative group"
-          >
-            <div
-              className="relative rounded-2xl overflow-hidden aspect-[3/4] glass-panel border-0 cursor-pointer"
-              onClick={() => openFullscreenViewer(item)}
-            >
-              <img
-                src={item.imageUrl}
-                alt="Match"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // Fallback if image fails to load
-                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
-                }}
-              />
-
-              {/* Confidence Badge */}
-              <div className="absolute top-2 right-2 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-brand-secondary/30 dark:border-brand-secondary/30 light:border-brand-secondary/40 transition-colors duration-300">
-                <span className="text-xs font-bold text-brand-secondary dark:text-brand-secondary light:text-brand-secondary/90 transition-colors duration-300">{item.confidence}%</span>
-              </div>
-
-              {/* Video Badge */}
-              {item.media_type === 'video' && (
-                <div className="absolute top-2 right-16 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-blue-500/30 transition-colors duration-300 flex items-center gap-1">
-                  <Video size={12} className="text-blue-400" />
-                  <span className="text-xs font-bold text-blue-400">{item.timestamp}s</span>
-                </div>
-              )}
-
-              {/* Info Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedImage(item);
-                  setViewerMode('info');
-                }}
-                className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 dark:bg-black/60 light:bg-black/40 backdrop-blur-md flex items-center justify-center text-white/70 dark:text-white/70 light:text-white/90 hover:bg-white/20 dark:hover:bg-white/20 light:hover:bg-white/30 transition-all duration-300 z-10"
-              >
-                <Info size={16} className="transition-colors duration-300" />
-              </button>
-
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 dark:from-black/80 light:from-black/60 via-transparent to-transparent opacity-80 dark:opacity-80 light:opacity-70 transition-all duration-300" />
-
-              {/* Actions */}
-              <div className="absolute bottom-0 inset-x-0 p-3 flex justify-between items-center z-20">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReject(item.id);
-                  }}
-                  className="w-10 h-10 rounded-full bg-white/10 dark:bg-white/10 light:bg-white/20 backdrop-blur-md flex items-center justify-center text-white/70 dark:text-white/70 light:text-white/90 hover:bg-red-500/80 dark:hover:bg-red-500/80 light:hover:bg-red-500/70 hover:text-white transition-colors duration-300"
-                >
-                  <X size={18} />
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSave(item.id);
-                  }}
-                  disabled={item.isSaved}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all transform active:scale-90 ${item.isSaved ? 'bg-green-500 dark:bg-green-500 light:bg-green-600 text-white' : 'bg-brand-primary dark:bg-brand-primary light:bg-brand-primary/90 text-white hover:bg-brand-primary/80 dark:hover:bg-brand-primary/80 light:hover:bg-brand-primary/70 shadow-[0_0_15px_rgba(124,92,255,0.5)] dark:shadow-[0_0_15px_rgba(124,92,255,0.5)] light:shadow-[0_0_15px_rgba(124,92,255,0.4)]'}`}
-                >
-                  <Check size={18} />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+      {/* Tabs */}
+      <div className="flex justify-center mb-6">
+        <div className="inline-flex p-1.5 bg-gray-900/50 dark:bg-white/5 light:bg-gray-100 rounded-full border border-white/10 dark:border-white/10 light:border-gray-200 backdrop-blur-md">
+          <TabButton type="image" label="Images" icon={ImageIcon} />
+          <TabButton type="video" label="Videos" icon={Film} />
+        </div>
       </div>
 
-      {/* Fullscreen Image Viewer */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeMediaType}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="min-h-[400px]"
+        >
+          {filteredResults.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 opacity-40">
+              <div className="w-16 h-16 border-2 border-dashed border-gray-500 dark:border-gray-500 rounded-2xl flex items-center justify-center mb-4">
+                {activeMediaType === 'image' ? <ImageIcon size={30} /> : <Film size={30} />}
+              </div>
+              <p className="text-gray-400 dark:text-gray-400 light:text-gray-600 font-medium">No {activeMediaType} matches found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {filteredResults.map((item, index) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="relative group"
+                >
+                  <div
+                    className="relative rounded-2xl overflow-hidden aspect-[3/4] glass-panel border-0 cursor-pointer"
+                    onClick={() => openFullscreenViewer(item)}
+                  >
+                    <img
+                      src={item.imageUrl}
+                      alt="Match"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
+                      }}
+                    />
+
+                    {/* Confidence Badge */}
+                    <div className="absolute top-2 right-2 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-brand-secondary/30 dark:border-brand-secondary/30 light:border-brand-secondary/40 transition-colors duration-300">
+                      <span className="text-xs font-bold text-brand-secondary dark:text-brand-secondary light:text-brand-secondary/90 transition-colors duration-300">{item.confidence}%</span>
+                    </div>
+
+                    {/* Video Badge */}
+                    {item.media_type === 'video' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center border border-white/40">
+                          <Play size={18} className="text-white fill-current ml-0.5" />
+                        </div>
+                        <div className="absolute top-2 right-16 bg-black/60 dark:bg-black/60 light:bg-black/50 backdrop-blur-md px-2 py-1 rounded-full border border-blue-500/30 transition-colors duration-300 flex items-center gap-1">
+                          <Video size={12} className="text-blue-400" />
+                          <span className="text-xs font-bold text-blue-400">{item.timestamp}s</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Info Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImage(item);
+                        setViewerMode('info');
+                      }}
+                      className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 dark:bg-black/60 light:bg-black/40 backdrop-blur-md flex items-center justify-center text-white/70 dark:text-white/70 light:text-white/90 hover:bg-white/20 dark:hover:bg-white/20 light:hover:bg-white/30 transition-all duration-300 z-10"
+                    >
+                      <Info size={16} className="transition-colors duration-300" />
+                    </button>
+
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 dark:from-black/80 light:from-black/60 via-transparent to-transparent opacity-80 dark:opacity-80 light:opacity-70 transition-all duration-300" />
+
+                    {/* Actions */}
+                    <div className="absolute bottom-0 inset-x-0 p-3 flex justify-between items-center z-20">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReject(item.id);
+                        }}
+                        className="w-10 h-10 rounded-full bg-white/10 dark:bg-white/10 light:bg-white/20 backdrop-blur-md flex items-center justify-center text-white/70 dark:text-white/70 light:text-white/90 hover:bg-red-500/80 dark:hover:bg-red-500/80 light:hover:bg-red-500/70 hover:text-white transition-colors duration-300"
+                      >
+                        <X size={18} />
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSave(item.id);
+                        }}
+                        disabled={item.isSaved}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all transform active:scale-90 ${item.isSaved ? 'bg-green-500 dark:bg-green-500 light:bg-green-600 text-white' : 'bg-brand-primary dark:bg-brand-primary light:bg-brand-primary/90 text-white hover:bg-brand-primary/80 dark:hover:bg-brand-primary/80 light:hover:bg-brand-primary/70 shadow-[0_0_15px_rgba(124,92,255,0.5)] dark:shadow-[0_0_15px_rgba(124,92,255,0.5)] light:shadow-[0_0_15px_rgba(124,92,255,0.4)]'}`}
+                      >
+                        <Check size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Fullscreen Viewer (Handles Images & Videos) */}
       <AnimatePresence>
         {selectedImage && viewerMode === 'fullscreen' && (
           <motion.div
@@ -431,8 +465,11 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
             {/* Header */}
             <div className="flex justify-between items-center p-6">
               <div className="flex items-center gap-4">
+                <span className="text-sm font-bold bg-white/10 px-2 py-1 rounded text-white uppercase tracking-wider">
+                  {selectedImage.media_type || 'IMAGE'}
+                </span>
                 <span className="text-sm font-mono text-gray-400 dark:text-gray-400 light:text-gray-300 transition-colors duration-300">
-                  {currentImageIndex + 1} / {results.length}
+                  {currentImageIndex + 1} / {filteredResults.length}
                 </span>
                 <span className="text-sm text-gray-400 dark:text-gray-400 light:text-gray-300 transition-colors duration-300">
                   {selectedImage.confidence}% Match
@@ -449,10 +486,10 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
               </button>
             </div>
 
-            {/* Image Container with Navigation */}
+            {/* Content Container with Navigation */}
             <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
               {/* Previous Button */}
-              {results.length > 1 && (
+              {filteredResults.length > 1 && (
                 <button
                   onClick={() => navigateImage('prev')}
                   className="absolute left-4 z-10 p-3 rounded-full bg-black/50 dark:bg-black/50 light:bg-white/20 backdrop-blur-md hover:bg-black/70 dark:hover:bg-black/70 light:hover:bg-white/30 transition-colors duration-300"
@@ -461,23 +498,33 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                 </button>
               )}
 
-              {/* Image */}
-              <motion.img
-                key={selectedImage.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                src={selectedImage.imageUrl}
-                alt="Match"
-                className="max-h-full max-w-full object-contain rounded-lg shadow-[0_0_50px_rgba(124,92,255,0.2)]"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
-                }}
-              />
+              {/* Media Content */}
+              {selectedImage.media_type === 'video' ? (
+                <video
+                  key={selectedImage.imageUrl}
+                  src={selectedImage.imageUrl}
+                  controls
+                  autoPlay
+                  className="max-h-full max-w-full rounded-lg shadow-[0_0_50px_rgba(124,92,255,0.2)]"
+                />
+              ) : (
+                <motion.img
+                  key={selectedImage.imageUrl}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  src={selectedImage.imageUrl}
+                  alt="Match"
+                  className="max-h-full max-w-full object-contain rounded-lg shadow-[0_0_50px_rgba(124,92,255,0.2)]"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Image+Not+Found';
+                  }}
+                />
+              )}
 
               {/* Next Button */}
-              {results.length > 1 && (
+              {filteredResults.length > 1 && (
                 <button
                   onClick={() => navigateImage('next')}
                   className="absolute right-4 z-10 p-3 rounded-full bg-black/50 dark:bg-black/50 light:bg-white/20 backdrop-blur-md hover:bg-black/70 dark:hover:bg-black/70 light:hover:bg-white/30 transition-colors duration-300"
@@ -561,26 +608,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                     <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">{selectedImage.width} × {selectedImage.height}</span>
                   </div>
                 )}
-                {selectedImage.file_size && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">File Size:</span>
-                    <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">{formatFileSize(selectedImage.file_size)}</span>
-                  </div>
-                )}
-                {selectedImage.datetime && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Date Taken:</span>
-                    <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">{formatDate(selectedImage.datetime)}</span>
-                  </div>
-                )}
-                {(selectedImage.latitude && selectedImage.longitude) && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Location:</span>
-                    <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">
-                      {selectedImage.latitude.toFixed(4)}, {selectedImage.longitude.toFixed(4)}
-                    </span>
-                  </div>
-                )}
+                {/* ... existing metadata checks ... */}
                 {selectedImage.media_type === 'video' && selectedImage.timestamp !== undefined && (
                   <div className="flex justify-between">
                     <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Timestamp:</span>
