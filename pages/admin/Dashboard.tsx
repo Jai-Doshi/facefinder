@@ -138,6 +138,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
           showToast(`${totalFailed} file(s) failed`, 'error');
         }
 
+        // Show success state
+        setIsUploading(false);
+
         if (onUploadComplete) {
           setTimeout(() => {
             onUploadComplete();
@@ -147,9 +150,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onUpload, onUploadCompl
         fetchStats();
       } catch (error: any) {
         showToast(error.message || 'Failed to upload files', 'error');
+        setIsUploading(false); // Also show result on error
       } finally {
         setTimeout(() => {
-          setIsUploading(false);
           setShowUploadModal(false);
           setUploadProgress({ processed: 0, failed: 0, total: 0, current: 0, percentage: 0, currentFile: '' });
         }, 3000);
