@@ -302,7 +302,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
     <button
       onClick={() => setActiveMediaType(type)}
       className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 z-10 ${activeMediaType === type
-        ? 'text-black dark:text-gray-900 light:text-gray-900'
+        ? '!text-black'
         : 'text-gray-500 dark:text-gray-400 light:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200'
         }`}
     >

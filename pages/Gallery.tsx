@@ -36,13 +36,44 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
     try {
       setLoading(true);
       const images = await getGalleryImages(token);
-      // Ensure items have a type, defaulting to 'image' if missing
-      const processedItems = images.map(item => ({
-        ...item,
-        type: (item.media_type || 'image') as MediaType, // Use media_type from DB or default
-        videoUrl: item.media_type === 'video' ? item.imageUrl : undefined // Map URL if video
-      }));
-      setItems(processedItems);
+
+      // Deduplication Logic
+      const uniqueVideos = new Map<string, any>();
+      const processedImages: any[] = [];
+
+      images.forEach(item => {
+        const processedItem = {
+          ...item,
+          type: (item.media_type || 'image') as MediaType,
+          videoUrl: item.media_type === 'video' ? item.imageUrl : undefined,
+          timestamps: item.media_type === 'video' ? [item.timestamp || 0] : undefined
+        };
+
+        if (processedItem.type === 'video') {
+          const existing = uniqueVideos.get(processedItem.imageUrl);
+          const ts = processedItem.timestamp || 0;
+
+          if (!existing) {
+            uniqueVideos.set(processedItem.imageUrl, processedItem);
+          } else {
+            if (existing.timestamps && !existing.timestamps.includes(ts)) {
+              existing.timestamps.push(ts);
+              existing.timestamps.sort((a: number, b: number) => a - b);
+            }
+            // Keep the one with highest ID (newest) or some other metric?
+            // For gallery, usually we just want one entry.
+            // Let's keep the one currently in map, just merge timestamps.
+          }
+        } else {
+          processedImages.push(processedItem);
+        }
+      });
+
+      const finalItems = [...processedImages, ...Array.from(uniqueVideos.values())];
+      // Sort by ID descending (newest first)
+      finalItems.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+
+      setItems(finalItems);
     } catch (error) {
       console.error('Failed to load gallery:', error);
     } finally {
@@ -284,11 +315,11 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
                   >
                     {item.type === 'video' && item.videoUrl ? (
                       <video
-                        src={item.videoUrl}
+                        src={`${item.videoUrl}#t=0.01`}
                         className="w-full h-full object-cover"
                         muted
                         playsInline
-                        preload="metadata"
+                        preload="metadata" // Metadata only to save bandwidth
                         loop
                       />
                     ) : (
@@ -392,26 +423,81 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
             </div>
 
             {/* Footer Actions */}
-            <div className="p-8 flex justify-center gap-10 pb-16">
+            <div className="p-8 flex justify-center gap-8 pb-16 items-center flex-wrap">
               <button onClick={handleShare} className="flex flex-col items-center gap-2 group">
-                <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-brand-primary/10 transition-colors flex items-center justify-center text-gray-700 dark:text-white">
-                  <Share2 size={22} />
+                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-brand-primary/10 transition-colors flex items-center justify-center text-gray-700 dark:text-white">
+                  <Share2 size={20} />
                 </div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">Share</span>
               </button>
 
+              {selectedImage.type === 'video' && selectedImage.timestamps && selectedImage.timestamps.length > 0 && (
+                <div className="relative group">
+                  <button
+                    className="flex flex-col items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Toggle or show timestamp list overlay
+                      // For simplicity, we can use a local state or just show a popover
+                      // Let's use a simple alert-like overlay or reuse the Info concept
+                      // But user asked for a button "in middle".
+                      // Let's toggle a visibility state for the list container
+                      const el = document.getElementById('timestamp-overlay');
+                      if (el) el.classList.toggle('hidden');
+                    }}
+                  >
+                    <div className="w-14 h-14 rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 group-hover:bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-primary dark:text-brand-primary scale-110 shadow-[0_0_15px_rgba(124,92,255,0.3)]">
+                      <div className="flex flex-col items-center leading-none">
+                        <span className="text-lg font-bold">{selectedImage.timestamps.length}</span>
+                        <span className="text-[8px] uppercase">Times</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-brand-primary dark:text-brand-primary tracking-wider">Timestamps</span>
+                  </button>
+
+                  {/* Timestamp Popover Overlay */}
+                  <div id="timestamp-overlay" className="hidden absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-64 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Found {selectedImage.timestamps.length} times</span>
+                      <button onClick={(e) => { e.stopPropagation(); document.getElementById('timestamp-overlay')?.classList.add('hidden'); }} className="text-white/50 hover:text-white">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                      {selectedImage.timestamps.map((ts) => (
+                        <button
+                          key={ts}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (videoRef.current) {
+                              videoRef.current.currentTime = ts;
+                              videoRef.current.play();
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-brand-primary/80 hover:scale-105 active:scale-95 text-white text-xs border border-white/5 transition-all"
+                        >
+                          {ts}s
+                        </button>
+                      ))}
+                    </div>
+                    {/* Triangle Arrow */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-black/80"></div>
+                  </div>
+                </div>
+              )}
+
               {selectedImage.type === 'image' && (
                 <button onClick={handleZoom} className="flex flex-col items-center gap-2 group">
-                  <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-gray-200 dark:group-hover:bg-white/10 transition-colors flex items-center justify-center text-gray-700 dark:text-white">
-                    {isZoomed ? <ZoomOut size={22} /> : <ZoomIn size={22} />}
+                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-white/5 group-hover:bg-gray-200 dark:group-hover:bg-white/10 transition-colors flex items-center justify-center text-gray-700 dark:text-white">
+                    {isZoomed ? <ZoomOut size={20} /> : <ZoomIn size={20} />}
                   </div>
                   <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">{isZoomed ? 'Reset' : 'Zoom'}</span>
                 </button>
               )}
 
               <button onClick={() => handleDelete(selectedImage.id)} className="flex flex-col items-center gap-2 group">
-                <div className="w-14 h-14 rounded-full bg-red-50 dark:bg-red-500/10 group-hover:bg-red-100 dark:group-hover:bg-red-500/20 transition-colors flex items-center justify-center text-red-600 dark:text-red-400">
-                  <Trash2 size={22} />
+                <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-500/10 group-hover:bg-red-100 dark:group-hover:bg-red-500/20 transition-colors flex items-center justify-center text-red-600 dark:text-red-400">
+                  <Trash2 size={20} />
                 </div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">Delete</span>
               </button>
