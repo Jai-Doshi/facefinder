@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Shimmer, ShimmerImage } from '../components/Shimmer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Share2, Trash2, X, ZoomIn, ChevronLeft, ChevronRight, ZoomOut, Play, Film, ImageIcon as ImageIconLucide } from 'lucide-react';
+import { Share2, Trash2, X, ZoomIn, ChevronLeft, ChevronRight, ZoomOut, Play, Film, ImageIcon as ImageIconLucide, ScanFace } from 'lucide-react';
 import { PhotoResult, MediaType } from '../types';
 import { getGalleryImages, deleteFromGallery } from '../services/apiService';
 
@@ -437,49 +437,78 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
                     className="flex flex-col items-center gap-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Toggle or show timestamp list overlay
-                      // For simplicity, we can use a local state or just show a popover
-                      // Let's use a simple alert-like overlay or reuse the Info concept
-                      // But user asked for a button "in middle".
-                      // Let's toggle a visibility state for the list container
-                      const el = document.getElementById('timestamp-overlay');
-                      if (el) el.classList.toggle('hidden');
+                      // Interactive Scan Flow
+                      const overlay = document.getElementById('timestamp-overlay');
+                      const list = document.getElementById('timestamp-list');
+                      const scan = document.getElementById('timestamp-scan');
+
+                      if (overlay && overlay.classList.contains('hidden')) {
+                        // Start Scan
+                        overlay.classList.remove('hidden');
+                        if (scan) scan.classList.remove('hidden');
+                        if (list) list.classList.add('hidden');
+
+                        // Simulate Scanning delay
+                        setTimeout(() => {
+                          if (scan) scan.classList.add('hidden');
+                          if (list) list.classList.remove('hidden');
+                        }, 1500);
+                      } else if (overlay) {
+                        // Close if already open
+                        overlay.classList.add('hidden');
+                      }
                     }}
                   >
-                    <div className="w-14 h-14 rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 group-hover:bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-primary dark:text-brand-primary scale-110 shadow-[0_0_15px_rgba(124,92,255,0.3)]">
-                      <div className="flex flex-col items-center leading-none">
-                        <span className="text-lg font-bold">{selectedImage.timestamps.length}</span>
-                        <span className="text-[8px] uppercase">Times</span>
-                      </div>
+                    <div className="w-12 h-12 rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 group-hover:bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-primary dark:text-brand-primary shadow-[0_0_15px_rgba(124,92,255,0.3)] transition-transform active:scale-95">
+                      <ScanFace size={20} className="w-5 h-5" />
+                      {/* Using ImageIcon as a proxy for "Face Scan" or Scan icon if imported */}
                     </div>
-                    <span className="text-[10px] uppercase font-bold text-brand-primary dark:text-brand-primary tracking-wider">Timestamps</span>
+                    <span className="text-[10px] uppercase font-bold text-brand-primary dark:text-brand-primary tracking-wider">Scan</span>
                   </button>
 
-                  {/* Timestamp Popover Overlay */}
+                  {/* Timestamp Interactive Overlay */}
                   <div id="timestamp-overlay" className="hidden absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-64 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in zoom-in duration-200">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">Found {selectedImage.timestamps.length} times</span>
-                      <button onClick={(e) => { e.stopPropagation(); document.getElementById('timestamp-overlay')?.classList.add('hidden'); }} className="text-white/50 hover:text-white">
-                        <X size={14} />
-                      </button>
+
+                    {/* 1. Scanning State */}
+                    <div id="timestamp-scan" className="flex flex-col items-center justify-center py-4 space-y-3">
+                      <div className="relative w-12 h-12">
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-brand-primary/50 border-t-brand-primary"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        />
+                        <div className="absolute inset-2 rounded-full bg-brand-primary/20 animate-pulse" />
+                      </div>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider animate-pulse">Analyzing Video...</span>
                     </div>
-                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
-                      {selectedImage.timestamps.map((ts) => (
-                        <button
-                          key={ts}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (videoRef.current) {
-                              videoRef.current.currentTime = ts;
-                              videoRef.current.play();
-                            }
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-brand-primary/80 hover:scale-105 active:scale-95 text-white text-xs border border-white/5 transition-all"
-                        >
-                          {ts}s
+
+                    {/* 2. List State */}
+                    <div id="timestamp-list" className="hidden">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs font-bold text-white uppercase tracking-wider text-green-400">Match Found ({selectedImage.timestamps.length})</span>
+                        <button onClick={(e) => { e.stopPropagation(); document.getElementById('timestamp-overlay')?.classList.add('hidden'); }} className="text-white/50 hover:text-white">
+                          <X size={14} />
                         </button>
-                      ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                        {selectedImage.timestamps.map((ts) => (
+                          <button
+                            key={ts}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = ts;
+                                videoRef.current.play();
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-brand-primary/80 hover:scale-105 active:scale-95 text-white text-xs border border-white/5 transition-all"
+                          >
+                            {ts}s
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
                     {/* Triangle Arrow */}
                     <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-black/80"></div>
                   </div>
