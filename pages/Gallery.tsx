@@ -186,8 +186,8 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
     <button
       onClick={() => setActiveMediaType(type)}
       className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 z-10 ${activeMediaType === type
-          ? 'text-gray-900 dark:text-white'
-          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+        ? 'text-gray-900 dark:text-white'
+        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
         }`}
     >
       {activeMediaType === type && (
@@ -263,20 +263,52 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
                   onClick={() => openImageViewer(item)}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <img
-                    src={item.imageUrl}
-                    alt="Gallery item"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Error'; }}
-                  />
-                  {item.type === 'video' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors">
-                      <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center border border-white/40">
-                        <Play size={18} className="text-white fill-current ml-0.5" />
+                  <div
+                    onClick={() => openImageViewer(item)}
+                    className="relative w-full h-full bg-black"
+                    onMouseEnter={(e) => {
+                      if (item.type === 'video') {
+                        const vid = e.currentTarget.querySelector('video');
+                        if (vid) vid.play().catch(() => { });
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (item.type === 'video') {
+                        const vid = e.currentTarget.querySelector('video');
+                        if (vid) {
+                          vid.pause();
+                          vid.currentTime = 0; // Reset preview
+                        }
+                      }
+                    }}
+                  >
+                    {item.type === 'video' && item.videoUrl ? (
+                      <video
+                        src={item.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        loop
+                      />
+                    ) : (
+                      <img
+                        src={item.imageUrl}
+                        alt="Gallery item"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x400?text=Error'; }}
+                      />
+                    )}
+
+                    {item.type === 'video' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/30 transition-colors pointer-events-none">
+                        <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center border border-white/40">
+                          <Play size={18} className="text-white fill-current ml-0.5" />
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  </div>
                 </motion.div>
               ))}
             </div>

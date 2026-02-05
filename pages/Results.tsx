@@ -100,14 +100,30 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
             imageUrl: getImageUrl(item.imageUrl),
             media_type: item.media_type || 'image',
             type: (item.media_type || 'image') as MediaType,
-            videoUrl: item.media_type === 'video' ? getImageUrl(item.imageUrl) : undefined
+            videoUrl: item.media_type === 'video' ? getImageUrl(item.imageUrl) : undefined,
+            timestamps: item.media_type === 'video' ? [item.timestamp || 0] : undefined
           };
 
           if (processedItem.media_type === 'video') {
             // Deduplicate videos: Keep only the highest confidence match per video file
             const existing = uniqueVideos.get(processedItem.imageUrl);
-            if (!existing || processedItem.similarity > existing.similarity) {
+            const ts = processedItem.timestamp || 0;
+
+            if (!existing) {
               uniqueVideos.set(processedItem.imageUrl, processedItem);
+            } else {
+              // Collect unique timestamps
+              if (!existing.timestamps.includes(ts)) {
+                existing.timestamps.push(ts);
+                existing.timestamps.sort((a: number, b: number) => a - b);
+              }
+
+              // Update metadata if found a better match
+              if (processedItem.similarity > existing.similarity) {
+                existing.similarity = processedItem.similarity;
+                existing.confidence = processedItem.confidence;
+                existing.timestamp = ts; // Default valid timestamp
+              }
             }
           } else {
             processedImages.push(processedItem);
@@ -286,7 +302,7 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
     <button
       onClick={() => setActiveMediaType(type)}
       className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 z-10 ${activeMediaType === type
-        ? 'text-black dark:text-black'
+        ? 'text-black dark:text-gray-900 light:text-gray-900'
         : 'text-gray-500 dark:text-gray-400 light:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200'
         }`}
     >
@@ -656,10 +672,27 @@ const Results: React.FC<ResultsProps> = ({ sourceImage, sourceFile, onBack, onSa
                   </div>
                 )}
                 {/* ... existing metadata checks ... */}
-                {selectedImage.media_type === 'video' && selectedImage.timestamp !== undefined && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300">Timestamp:</span>
-                    <span className="text-white dark:text-white light:text-gray-900 transition-colors duration-300">{selectedImage.timestamp}s</span>
+                {selectedImage.media_type === 'video' && selectedImage.timestamps && selectedImage.timestamps.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-white/10">
+                    <span className="text-gray-400 dark:text-gray-400 light:text-gray-600 transition-colors duration-300 block text-xs">Appearances:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedImage.timestamps.map((ts: number) => (
+                        <button
+                          key={ts}
+                          onClick={() => {
+                            // Jump to timestamp
+                            // We are in 'info' mode, switch to 'fullscreen' and set time
+                            // To do this properly, we need to pass a "startAt" prop or update selectedImage
+                            const updatedImage = { ...selectedImage, timestamp: ts };
+                            setSelectedImage(updatedImage);
+                            setViewerMode('fullscreen');
+                          }}
+                          className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs border border-white/10 transition-colors"
+                        >
+                          {ts}s
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
