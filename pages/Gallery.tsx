@@ -39,7 +39,7 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
 
       // Deduplication Logic
       const uniqueVideos = new Map<string, any>();
-      const processedImages: any[] = [];
+      const uniqueImages = new Map<string, any>();
 
       images.forEach(item => {
         const processedItem = {
@@ -51,25 +51,26 @@ const Gallery: React.FC<GalleryProps> = ({ token, onDelete }) => {
 
         if (processedItem.type === 'video') {
           const existing = uniqueVideos.get(processedItem.imageUrl);
-          const ts = processedItem.timestamp || 0;
+          const ts = Math.round((processedItem.timestamp || 0) * 100) / 100;
 
           if (!existing) {
+            processedItem.timestamps = [ts];
             uniqueVideos.set(processedItem.imageUrl, processedItem);
           } else {
             if (existing.timestamps && !existing.timestamps.includes(ts)) {
               existing.timestamps.push(ts);
               existing.timestamps.sort((a: number, b: number) => a - b);
             }
-            // Keep the one with highest ID (newest) or some other metric?
-            // For gallery, usually we just want one entry.
-            // Let's keep the one currently in map, just merge timestamps.
           }
         } else {
-          processedImages.push(processedItem);
+          // Deduplicate images
+          if (!uniqueImages.has(processedItem.imageUrl)) {
+            uniqueImages.set(processedItem.imageUrl, processedItem);
+          }
         }
       });
 
-      const finalItems = [...processedImages, ...Array.from(uniqueVideos.values())];
+      const finalItems = [...Array.from(uniqueImages.values()), ...Array.from(uniqueVideos.values())];
       // Sort by ID descending (newest first)
       finalItems.sort((a, b) => parseInt(b.id) - parseInt(a.id));
 
